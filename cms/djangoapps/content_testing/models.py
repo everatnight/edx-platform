@@ -15,7 +15,6 @@ def hash_xml(tree):
     """
     tree = deepcopy(tree)
     remove_xml_ids(tree)
-    print etree.tostring(tree)
     return etree.tostring(tree).__hash__()
 
 
@@ -211,10 +210,15 @@ class ContentTest(models.Model):
 
     def rematch_if_necessary(self):
         """
-        rematches itself to its problem if it no longer matches
+        Rematches itself to its problem if it no longer matches.
+        Reassigns hashes to response models if they no longer
+        match but the structure still does.
         """
         if not self._still_matches():
             self._rematch()
+
+        elif not self._still_hashes_match():
+            self._reassign_hashes()
 
 #======= Private Methods =======#
 
@@ -235,6 +239,19 @@ class ContentTest(models.Model):
                 break
 
         return all_match
+
+    def _still_hashes_match(self):
+        """
+        Returns true if all the hashes still match, and false if they dont
+        (this indicates the problem has been edited)
+        """
+
+        all_hashes_match = True
+        for resp_model in self.response_set.all():
+            if not resp_model._still_hashes_match():
+                all_hashes_match = False
+
+        return all_hashes_match
 
     def _rematch(self):
         """
@@ -272,6 +289,14 @@ class ContentTest(models.Model):
 
         # remake the dictionary
         self._remake_dict_from_children()
+
+    def _reassign_hashes(self):
+        """
+        tell all children to reassign their hashes
+        """
+
+        for resp_model in self.response_set.all():
+            resp_model._reassign_hashes()
 
     def _should_be_buttons(self, resp_should_be):
         """
@@ -376,7 +401,7 @@ class ContentTest(models.Model):
         """
         create child responses and input entries
         """
-
+        # import nose; nose.tools.set_trace()
         # create a preview capa problem
         problem_capa = self.capa_problem
 
@@ -440,9 +465,6 @@ class Response(models.Model):
         input_models = self.input_set.order_by('input_index').all()
         for input_field, input_model in zip(responder.inputfields, input_models):
 
-            # something has gone terribly wrong if they dont actually match up
-            # assert input_field.attrib['answer_id'] == input_model.input_index
-
             # reassign the other ids
             input_model.response_index = input_field.attrib['response_id']
             input_model.string_id = input_field.attrib['id']
@@ -491,19 +513,41 @@ class Response(models.Model):
 
     def still_matches(self):
         """
-        check that the stored has is the same as the calculated on
+        check that the model has the same structure as corresponding responder object
         """
 
         try:
-            capa_xml = self.capa_response.xml
-            capa_hash = hash_xml(capa_xml)
-            return capa_hash == self.xml_hash
-        except LookupError:
+            return len(self.capa_response.inputfields) == self.input_set.count()
+
+        except:
+            return False
+
+    def _reassign_hashes(self):
+        """
+        refresh the stored hash value, since the xml has changed (attribute update)
+        but the structure hasn't
+        """
+
+        self.xml_hash = hash_xml(self.capa_response.xml)
+        self.save()
+
+    def _still_hashes_match(self):
+        """
+        Return true if the self.xml_hash is still the same as the hash of the
+        capa response object
+        """
+
+        try:
+            return hash_xml(self.capa_response.xml) == self.xml_hash
+
+        except:
             return False
 
 
 class Input(models.Model):
-    '''the input to a Response'''
+    """
+    the input to a Response
+    """
 
     # The response in which this input lives
     response = models.ForeignKey(Response)

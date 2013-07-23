@@ -86,7 +86,7 @@ class ContentTestTest(ModuleStoreTestCase):
         self.problem = ItemFactory.create(
             parent_location=self.course.location,
             data=problem_xml,
-            template=self.TEMPLATE)
+            category='problem')
 
         # sigh
         self.input_id_base = self.problem.id.replace('://', '-').replace('/', '-')
@@ -107,6 +107,7 @@ class ContentTestTest(ModuleStoreTestCase):
         assert self.problem
 
         # Make a collection of ContentTests to test
+        # import nose; nose.tools.set_trace()
         self.pass_correct = ContentTest.objects.create(
             problem_location=self.problem.location,
             should_be='Correct',
@@ -326,7 +327,7 @@ class RematchingTests(ContentTestTest):
         self.new_problem = ItemFactory.create(
             parent_location=self.course.location,
             data=self.new_xml,
-            template=self.TEMPLATE)
+            category='problem')
 
     def test_hash(self):
         """
@@ -378,46 +379,46 @@ class RematchingTests(ContentTestTest):
 
         # the dictioanry, after fixing, should have blank answers
         new_dict = {
-            self.input_id_base + '_2_1': '',
-            self.input_id_base + '_2_2': '',
-            self.input_id_base + '_2_3': ''
+            self.input_id_base + '-draft_2_1': '',
+            self.input_id_base + '-draft_2_2': '',
+            self.input_id_base + '-draft_2_3': ''
         }
 
         # change the problem by adding another textline
         modulestore().update_item(self.problem.location, self.new_xml)
 
         test_model = self.pass_correct
-        test_model._rematch()
+        test_model.rematch_if_necessary()
         self.assertEqual(new_dict, test_model._get_response_dictionary())
 
-    def test_new_dict_bigger(self):
+    def test_append(self):
         """
         test adding a new response at the end and then rebuilding
         """
         self.maxDiff = None
-        # print self.new_xml
-        # print self.pass_correct.capa_problem.problem_text
 
         # add a response at the end
-        new_response_xml = etree.XML("<customresponse cfn=\"test_prime\"><textline/><textline/></customresponse>")
+        new_response_xml = etree.XML("<customresponse cfn=\"test_prime\"><textline/><textline/><textline/></customresponse>")
         new_xml = self.pass_correct.capa_problem.tree
         new_xml.append(new_response_xml)
         new_xml_string = etree.tostring(new_xml)
         # the response dict should look like
         two_responses_dict = {
             self.input_id_base + '_3_1': '',
-            self.input_id_base + '_3_2': ''
+            self.input_id_base + '_3_2': '',
+            self.input_id_base + '_3_3': ''
         }
         two_responses_dict.update(self.response_dict_correct)
 
         # change the problem by adding another response at end
         modulestore().update_item(self.problem.location, new_xml_string)
+        modulestore().publish(self.problem.location, 0)
         
         test_model = self.pass_correct
-        test_model._rematch()
+        test_model.rematch_if_necessary()
         self.assertEqual(two_responses_dict, test_model._get_response_dictionary())
 
-    def test_new_dict_bigger_front(self):
+    def test_insert(self):
         """
         adding response at beginning of problem
         """
@@ -463,12 +464,32 @@ def test_prime(expect,ans):
 
         # change the problem by adding another response at end
         modulestore().update_item(self.problem.location, new_xml_string)
-        
+        modulestore().publish(self.problem.location, 0)
         test_model = self.pass_correct
-        # import nose; nose.tools.set_trace()
-        test_model._rematch()
+
+        test_model.rematch_if_necessary()
         self.assertEqual(two_responses_dict, test_model._get_response_dictionary())
 
+
+    def test_change_attributes(self):
+        """
+        test that changing the attributes of the mxl doesn't cuase any restructuring
+        """
+
+        # add attribute values
+        test_model = self.pass_correct
+        xml = test_model.capa_problem.tree
+        for child in xml:
+            child.attrib['samba'] = 'deamon'
+
+        # save these to the capa_problem
+        modulestore().update_item(self.problem.location, etree.tostring(xml))
+        modulestore().publish(self.problem.location, 0)
+
+        # make sure that no restructuring happens
+        test_model.rematch_if_necessary()
+        self.assertEqual(self.response_dict_correct, test_model._get_response_dictionary())
+        assert test_model._still_hashes_match()
 
     # def test_get_html_summary(self):
     #     """
