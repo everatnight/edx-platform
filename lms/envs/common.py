@@ -147,7 +147,7 @@ MITX_FEATURES = {
 
     # Toggle to enable chat availability (configured on a per-course
     # basis in Studio)
-    'ENABLE_CHAT': False
+    'ENABLE_CHAT': False,
 }
 
 # Used for A/B testing
