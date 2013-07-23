@@ -6,6 +6,7 @@ from mitxmako.shortcuts import render_to_string
 from lxml import etree
 from copy import deepcopy
 import pickle
+import time
 
 
 def hash_xml(tree):
@@ -108,7 +109,6 @@ class ContentTest(models.Model):
 
             # execute the override
             # lcp.responders[key].render_html = wrapper(lcp.responders[key].render_html)
-
         return lcp
 
     def capa_module(self):
@@ -121,6 +121,7 @@ class ContentTest(models.Model):
         new_lcp_state = preview_module.get_state_for_lcp()
         new_lcp_state['student_answers'] = self._get_response_dictionary()
         preview_module.lcp = preview_module.new_lcp(new_lcp_state)
+
         return preview_module
 
     def save(self, *arg, **kwargs):
@@ -197,7 +198,8 @@ class ContentTest(models.Model):
 
         # remove any forms that the html has
         # as far as I can tell these are only used for
-        # multiple choice and dropdowns
+        # multiple choice and dropdowns (although these are not
+        # the ones people will really be testing)
         import re
         remove_form_open = r"(<form)[^>]*>"
         remove_form_close = r"(/form)"
@@ -214,6 +216,7 @@ class ContentTest(models.Model):
         Reassigns hashes to response models if they no longer
         match but the structure still does.
         """
+
         if not self._still_matches():
             self._rematch()
 
@@ -227,7 +230,8 @@ class ContentTest(models.Model):
         Returns true if the test still corresponds to the structure of the
         problem
         """
-        # if there are no longer the same number, not amatch.
+
+        # if there are no longer the same number, not a match.
         if not(self.response_set.count() == len(self.capa_problem.responders)):
             return False
 
@@ -250,6 +254,7 @@ class ContentTest(models.Model):
         for resp_model in self.response_set.all():
             if not resp_model._still_hashes_match():
                 all_hashes_match = False
+                break
 
         return all_hashes_match
 
@@ -322,11 +327,6 @@ class ContentTest(models.Model):
                 "check_incorrect": "",
                 "check_error": "checked=\"True\""
             }
-
-        string = render_to_string('content_testing/form_bottom.html', context)
-        fp = open('/Users/irh/Desktop/out.txt', 'w')
-        fp.write(string)
-        fp.close()
 
         return render_to_string('content_testing/form_bottom.html', context)
 
@@ -401,7 +401,6 @@ class ContentTest(models.Model):
         """
         create child responses and input entries
         """
-        # import nose; nose.tools.set_trace()
         # create a preview capa problem
         problem_capa = self.capa_problem
 
@@ -444,7 +443,7 @@ class Response(models.Model):
     # the string identifier
     string_id = models.CharField(max_length=100)
 
-    # the inner xml of this response (used to extract the object quickly (ideally))
+    # hash of the xml for mathcing purposes
     xml_hash = models.BigIntegerField()
 
     def rematch(self, responder):
@@ -494,21 +493,11 @@ class Response(models.Model):
 
     @property
     def capa_response(self):
-        '''get the capa-response object to which this response model corresponds'''
+        """
+        get the capa-response object to which this response model corresponds
+        """
         parent_capa = self.content_test.capa_problem
-
-        # the obvious way doesn't work :(
-        # return parent_capa.responders[self.xml]
-
-        self_capa = None
-        for responder in parent_capa.responders.values():
-            if responder.id == self.string_id:
-                self_capa = responder
-                break
-
-        if self_capa is None:
-            raise LookupError
-
+        self_capa = parent_capa.responders_by_id[self.string_id]
         return self_capa
 
     def still_matches(self):
@@ -518,7 +507,6 @@ class Response(models.Model):
 
         try:
             return len(self.capa_response.inputfields) == self.input_set.count()
-
         except:
             return False
 

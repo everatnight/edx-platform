@@ -107,7 +107,6 @@ class ContentTestTest(ModuleStoreTestCase):
         assert self.problem
 
         # Make a collection of ContentTests to test
-        # import nose; nose.tools.set_trace()
         self.pass_correct = ContentTest.objects.create(
             problem_location=self.problem.location,
             should_be='Correct',
@@ -161,7 +160,6 @@ class WhiteBoxTests(ContentTestTest):
     def test_create_children(self):
         '''test that the ContentTest is created with the right structure'''
 
-        # import nose; nose.tools.set_trace()
         test_model = ContentTest.objects.create(
             problem_location=str(self.problem.location),
             should_be='Correct')
@@ -306,6 +304,25 @@ class BlackBoxTests(ContentTestTest):
 
         self.assertEqual(pickle.loads(new_model.response_dict), self.response_dict_correct)
 
+    # def test_get_html_summary(self):
+    #     """
+    #     test that html is rendered correctly
+    #     """
+
+    #     html = self.pass_correct.get_html_summary()
+    #     self.assertEqual(html, self.HTML_SUMMARY)
+
+    # def test_get_html_form(self):
+    #     """
+    #     test that html is rendered correctly
+    #     """
+
+    #     html = self.pass_correct.get_html_form()
+
+    #     self.assertEqual(html, self.HTML_FORM)
+
+
+
 
 class RematchingTests(ContentTestTest):
     """
@@ -329,6 +346,21 @@ class RematchingTests(ContentTestTest):
             data=self.new_xml,
             category='problem')
 
+        self.test_model = self.pass_correct
+
+    def update_problem_xml(self, new_xml_string):
+        """
+        update the problem xml and do the other acrobatics to update everything
+        consistantly
+        """
+
+        # update the problem
+        modulestore().update_item(self.problem.location, new_xml_string)
+        modulestore().publish(self.problem.location, 0)
+
+        # update the ContentTest
+        self.test_model = ContentTest.objects.get(pk=self.test_model.pk)
+
     def test_hash(self):
         """
         test that the hash function ignors the right things
@@ -346,20 +378,6 @@ class RematchingTests(ContentTestTest):
 
         assert self.pass_correct._still_matches()
 
-    def test_not_matches_lookup_error(self):
-        """
-        test that the model knows when it no longer matches when the
-        id's no longer match
-        """
-
-        # change the capa problem the test points to so that
-        # the problem structure is different
-        test_model = self.pass_correct
-        test_model.problem_location = self.new_problem.location
-        test_model.save()
-
-        assert not(test_model._still_matches())
-
     def test_not_matches_new_xml(self):
         """
         test that when the xml of the capa problem gets updated
@@ -367,10 +385,9 @@ class RematchingTests(ContentTestTest):
         """
 
         # change the problem by adding another textline
-        modulestore().update_item(self.problem.location, self.new_xml)
+        self.update_problem_xml(self.new_xml)
 
-        test_model = self.pass_correct
-        assert not(test_model._still_matches())
+        assert not(self.test_model._still_matches())
 
     def test_new_dict_blank(self):
         """
@@ -379,17 +396,16 @@ class RematchingTests(ContentTestTest):
 
         # the dictioanry, after fixing, should have blank answers
         new_dict = {
-            self.input_id_base + '-draft_2_1': '',
-            self.input_id_base + '-draft_2_2': '',
-            self.input_id_base + '-draft_2_3': ''
+            self.input_id_base + '_2_1': '',
+            self.input_id_base + '_2_2': '',
+            self.input_id_base + '_2_3': ''
         }
 
         # change the problem by adding another textline
-        modulestore().update_item(self.problem.location, self.new_xml)
+        self.update_problem_xml(self.new_xml)
 
-        test_model = self.pass_correct
-        test_model.rematch_if_necessary()
-        self.assertEqual(new_dict, test_model._get_response_dictionary())
+        self.test_model.rematch_if_necessary()
+        self.assertEqual(new_dict, self.test_model._get_response_dictionary())
 
     def test_append(self):
         """
@@ -411,19 +427,17 @@ class RematchingTests(ContentTestTest):
         two_responses_dict.update(self.response_dict_correct)
 
         # change the problem by adding another response at end
-        modulestore().update_item(self.problem.location, new_xml_string)
-        modulestore().publish(self.problem.location, 0)
-        
-        test_model = self.pass_correct
-        test_model.rematch_if_necessary()
-        self.assertEqual(two_responses_dict, test_model._get_response_dictionary())
+        self.update_problem_xml(new_xml_string)
+
+        self.test_model.rematch_if_necessary()
+        self.assertEqual(two_responses_dict, self.test_model._get_response_dictionary())
 
     def test_insert(self):
         """
         adding response at beginning of problem
         """
         self.maxDiff = None
-        new_xml_string= """<problem>
+        new_xml_string = """<problem>
 
 <script type="loncapa/python">
 
@@ -452,7 +466,7 @@ def test_prime(expect,ans):
   <textline/>
 </customresponse>
 </problem>"""
-        
+
         # the response dict should look like
         two_responses_dict = {
             self.input_id_base + '_3_1': '5',
@@ -463,13 +477,10 @@ def test_prime(expect,ans):
         }
 
         # change the problem by adding another response at end
-        modulestore().update_item(self.problem.location, new_xml_string)
-        modulestore().publish(self.problem.location, 0)
-        test_model = self.pass_correct
+        self.update_problem_xml(new_xml_string)
 
-        test_model.rematch_if_necessary()
-        self.assertEqual(two_responses_dict, test_model._get_response_dictionary())
-
+        self.test_model.rematch_if_necessary()
+        self.assertEqual(two_responses_dict, self.test_model._get_response_dictionary())
 
     def test_change_attributes(self):
         """
@@ -483,28 +494,9 @@ def test_prime(expect,ans):
             child.attrib['samba'] = 'deamon'
 
         # save these to the capa_problem
-        modulestore().update_item(self.problem.location, etree.tostring(xml))
-        modulestore().publish(self.problem.location, 0)
+        self.update_problem_xml(etree.tostring(xml))
 
         # make sure that no restructuring happens
-        test_model.rematch_if_necessary()
-        self.assertEqual(self.response_dict_correct, test_model._get_response_dictionary())
-        assert test_model._still_hashes_match()
-
-    # def test_get_html_summary(self):
-    #     """
-    #     test that html is rendered correctly
-    #     """
-
-    #     html = self.pass_correct.get_html_summary()
-    #     self.assertEqual(html, self.HTML_SUMMARY)
-
-    # def test_get_html_form(self):
-    #     """
-    #     test that html is rendered correctly
-    #     """
-
-    #     html = self.pass_correct.get_html_form()
-
-    #     self.assertEqual(html, self.HTML_FORM)
-
+        self.test_model.rematch_if_necessary()
+        self.assertEqual(self.response_dict_correct, self.test_model._get_response_dictionary())
+        assert self.test_model._still_hashes_match()

@@ -90,15 +90,17 @@ def preview_module_system(preview_id, descriptor, request=None):
     descriptor: An XModuleDescriptor
     """
 
+    if not hasattr(descriptor, '_model_data'):
+        import nose; nose.tools.set_trace()
+
     if request is not None:
         kvs = SessionKeyValueStore(request, descriptor._model_data)
-        get_module = partial(get_preview_module, preview_id, request)  # not actually different
+        # get_module = partial(get_preview_module, preview_id, request)  # not actually different
         user = request.user
 
     else:
-        #YET TO IMPLEMENT!!
         kvs = StaticPreviewKeyValueStore(descriptor._model_data)
-        get_module = partial(get_preview_module, preview_id)
+        # get_module = partial(get_preview_module, preview_id)
         user = None
 
     def preview_model_data(descriptor):
@@ -116,7 +118,7 @@ def preview_module_system(preview_id, descriptor, request=None):
         # TODO (cpennington): Do we want to track how instructors are using the preview problems?
         track_function=lambda event_type, event: None,
         filestore=descriptor.system.resources_fs,
-        get_module=partial(get_preview_module, request, preview_id),
+        get_module=partial(get_preview_module, preview_id, request=request),
         render_template=render_from_lms,
         debug=True,
         replace_urls=partial(static_replace.replace_static_urls, data_directory=None, course_namespace=descriptor.location),

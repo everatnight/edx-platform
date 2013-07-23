@@ -620,6 +620,7 @@ class LoncapaProblem(object):
         '''
         response_id = 1
         self.responders = {}
+        self.responders_by_id = {}
         for response in tree.xpath('//' + "|//".join(response_tag_dict)):
             response_id_str = self.problem_id + "_" + str(response_id)
             # create and save ID for this response
@@ -649,6 +650,7 @@ class LoncapaProblem(object):
                                                         self.context, self.system)
             # save in list in self
             self.responders[response] = responder
+            self.responders_by_id[responder.id] = responder
 
         # get responder answers (do this only once, since there may be a performance cost,
         # eg with externalresponse)
