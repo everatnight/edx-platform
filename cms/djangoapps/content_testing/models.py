@@ -260,7 +260,6 @@ class ContentTest(models.Model):
         if self.pk is None:
             return
 
-        t = time.time()
         # clear cache and turn caching on
 
         global CACHE_ON
@@ -280,10 +279,6 @@ class ContentTest(models.Model):
             # clear cache and turn caching off
             CACHE_ON = False
             CACHE_MODULESTORE.clear()
-
-        f = open('/Users/irh/Desktop/out.txt', 'a')
-        f.write("Rematch Time: %f\n" % (time.time()-t))
-        f.close()
 
 #======= Private Methods =======#
 
