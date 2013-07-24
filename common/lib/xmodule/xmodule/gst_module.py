@@ -9,7 +9,7 @@ from lxml import etree
 from lxml import html
 import xmltodict
 
-from xmodule.mako_module import MakoModuleDescriptor
+from xmodule.editing_module import XMLEditingDescriptor
 from xmodule.xml_module import XmlDescriptor
 from xmodule.x_module import XModule
 from xmodule.stringify import stringify_children
@@ -21,49 +21,55 @@ import textwrap
 log = logging.getLogger(__name__)
 
 
-class GraphicalSliderToolFields(object):
-    render = String(scope=Scope.content,
-                    default=textwrap.dedent('''\
-                            <render>
-                            <h2>Graphic slider tool: Dynamic range and implicit functions.</h2>
+DEFAULT_RENDER="""
+    <h2>Graphic slider tool: Dynamic range and implicit functions.</h2>
 
-                            <p>You can make x range (not ticks of x axis) of functions to depend on
-                              parameter value. This can be useful when function domain depends
-                              on parameter.</p>
-                            <p>Also implicit functons like circle can be plotted as 2 separate
-                                functions of same color.</p>
-                             <div style="height:50px;">
-                             <slider var='a' style="width:400px;float:left;"/>
-                             <textbox var='a' style="float:left;width:60px;margin-left:15px;"/>
-                           </div>
-                            <plot style="margin-top:15px;margin-bottom:15px;"/>
-                            </render>'''))
-    configuration = String(scope=Scope.content,
-                        default=textwrap.dedent('''\
-                          <configuration>
-                            <parameters>
-                                <param var="a" min="5" max="25" step="0.5" initial="12.5" />
-                            </parameters>
-                            <functions>
-                              <function color="red">Math.sqrt(a * a - x * x)</function>
-                              <function color="red">-Math.sqrt(a * a - x * x)</function>
-                            </functions>
-                            <plot>
-                              <xrange>
-                                <!-- dynamic range -->
-                                  <min>-a</min>
-                                  <max>a</max>
-                              </xrange>
-                              <num_points>1000</num_points>
-                              <xticks>-30, 6, 30</xticks>
-                              <yticks>-30, 6, 30</yticks>
-                            </plot>
-                          </configuration>'''))
+    <p>You can make the range of the x axis (but not ticks of x axis) of
+      functions depend on a parameter value. This can be useful when the
+      function domain needs to be variable.</p>
+    <p>Implicit functons like a circle can be plotted as 2 separate
+        functions of the same color.</p>
+     <div style="height:50px;">
+     <slider var='r' style="width:400px;float:left;"/>
+     <textbox var='r' style="float:left;width:60px;margin-left:15px;"/>
+   </div>
+    <plot style="margin-top:15px;margin-bottom:15px;"/>
+"""
+
+DEFAULT_CONFIGURATION="""
+    <parameters>
+        <param var="r" min="5" max="25" step="0.5" initial="12.5" />
+    </parameters>
+    <functions>
+      <function color="red">Math.sqrt(r * r - x * x)</function>
+      <function color="red">-Math.sqrt(r * r - x * x)</function>
+    </functions>
+    <plot>
+      <xrange>
+        <!-- dynamic range -->
+          <min>-r</min>
+          <max>r</max>
+      </xrange>
+      <num_points>1000</num_points>
+      <xticks>-30, 6, 30</xticks>
+      <yticks>-30, 6, 30</yticks>
+    </plot>
+"""
+
+
+class GraphicalSliderToolFields(object):
+    # render = String(scope=Scope.content, default=DEFAULT_RENDER)
+    # configuration = String(scope=Scope.content, default=DEFAULT_CONFIGURATION)
+    data = String(help="Html contents to display for this module",
+      default='<render>{}</render><configuration>{}</configuration>'.format(
+        DEFAULT_RENDER, DEFAULT_CONFIGURATION),
+      scope=Scope.content)
 
 
 class GraphicalSliderToolModule(GraphicalSliderToolFields, XModule):
     ''' Graphical-Slider-Tool Module
     '''
+
 
     js = {
       'coffee': [resource_string(__name__, 'js/src/javascript_loader.coffee')],
@@ -91,6 +97,13 @@ class GraphicalSliderToolModule(GraphicalSliderToolFields, XModule):
         # these 3 will be used in class methods
         self.html_id = self.location.html_id()
         self.html_class = self.location.category
+
+        self.configuration = html.fromstring(self.data).xpath('configuration')[0]
+        self.configuration = stringify_children(self.configuration)
+
+        self.render = html.fromstring(self.data).xpath('render')[0]
+        self.render = stringify_children(self.render)
+
         self.configuration_json = self.build_configuration_json()
         params = {
                   'gst_html': self.substitute_controls(self.render),
@@ -175,9 +188,8 @@ class GraphicalSliderToolModule(GraphicalSliderToolFields, XModule):
                 '">' + self.configuration + '</root>'))
 
 
-class GraphicalSliderToolDescriptor(GraphicalSliderToolFields, MakoModuleDescriptor, XmlDescriptor):
+class GraphicalSliderToolDescriptor(GraphicalSliderToolFields, XMLEditingDescriptor, XmlDescriptor):
     module_class = GraphicalSliderToolModule
-    mako_template = "widgets/graphical_slider_tool-edit.html"
 
     @classmethod
     def definition_from_xml(cls, xml_object, system):
