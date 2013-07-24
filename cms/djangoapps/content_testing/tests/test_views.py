@@ -5,7 +5,7 @@ from content_testing.models import ContentTest
 from textwrap import dedent
 
 
-class TestProblemViewTest (CourseTestCase):
+class TestProblemViewTestCase (CourseTestCase):
     """
     Tests for the views involved in the automated content testing
     """
@@ -28,7 +28,7 @@ class TestProblemViewTest (CourseTestCase):
         override parent setUp to put a problem in that course
         """
 
-        super(TestProblemViewTest, self).setUp()
+        super(TestProblemViewTestCase, self).setUp()
 
         #change the script if 1
         problem_xml = CustomResponseXMLFactory().build_xml(
@@ -183,4 +183,5 @@ class TestProblemViewTest (CourseTestCase):
         url = '/test_problem/edit/'
         response = self.client.get(url, get_data)
 
+        print response.content
         assert ('174440041' in response.content)

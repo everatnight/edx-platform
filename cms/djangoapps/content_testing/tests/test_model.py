@@ -11,9 +11,9 @@ from content_testing.models import ContentTest, Response, Input, hash_xml
 from capa.tests.response_xml_factory import CustomResponseXMLFactory
 from lxml import etree
 import pickle
+from mock import patch
 
-
-class ContentTestTest(ModuleStoreTestCase):
+class ContentTestTestCase(ModuleStoreTestCase):
     '''set up a content test to test'''
 
     SCRIPT = dedent("""
@@ -143,8 +143,10 @@ class ContentTestTest(ModuleStoreTestCase):
             response_dict=self.response_dict_error)
 
 
-class WhiteBoxTests(ContentTestTest):
-    '''test that inner methods are working'''
+class WhiteBoxTestCase(ContentTestTestCase):
+    """
+    test that inner methods are working
+    """
 
     def test_make_capa(self):
         '''test that the capa instantiation happens properly'''
@@ -173,7 +175,10 @@ class WhiteBoxTests(ContentTestTest):
         self.assertEqual(input_set.count(), self.NUM_INPUTS)
 
     def test_create_dictionary(self):
-        '''tests the constructions of the response dictionary'''
+        """
+        tests the constructions of the response dictionary
+        """
+        
         test_model = ContentTest.objects.create(
             problem_location=self.problem.location,
             should_be='Correct',
@@ -186,7 +191,9 @@ class WhiteBoxTests(ContentTestTest):
         self.assertEqual(self.response_dict_correct, created_dict)
 
     def test_update_dict(self):
-        '''tests the internal functionality of updating the dictionary through the children'''
+        """
+        tests the internal functionality of updating the dictionary through the children
+        """
         test_model = self.pass_correct
 
         # update the dictionary with wrong answers
@@ -199,7 +206,7 @@ class WhiteBoxTests(ContentTestTest):
         self.assertEqual(self.response_dict_incorrect, test_model._get_response_dictionary())
 
 
-class BlackBoxTests(ContentTestTest):
+class BlackBoxTestCase(ContentTestTestCase):
     """
     test overall behavior of the ContentTest model
     """
@@ -324,7 +331,7 @@ class BlackBoxTests(ContentTestTest):
 
 
 
-class RematchingTests(ContentTestTest):
+class RematchingTestCase(ContentTestTestCase):
     """
     tests the ability to rematch itself to an edited problem
     """
@@ -334,7 +341,7 @@ class RematchingTests(ContentTestTest):
         create new sructure to test smart restructuring capabilities
         """
 
-        super(RematchingTests, self).setUp()
+        super(RematchingTestCase, self).setUp()
 
         self.new_xml = CustomResponseXMLFactory().build_xml(
             script=self.SCRIPT,
@@ -500,3 +507,35 @@ def test_prime(expect,ans):
         self.test_model.rematch_if_necessary()
         self.assertEqual(self.response_dict_correct, self.test_model._get_response_dictionary())
         assert self.test_model._still_hashes_match()
+
+    def check_cache_is_off(self):
+        """
+        check that global variables used to speed up rematching are unset
+        after rematching
+        """
+
+        from content_testing.models import CACHE_MODULESTORE, CACHE_ON
+        assert not (CACHE_ON or CACHE_MODULESTORE)
+
+    def test_cache_clear_on_success(self):
+        """
+        after succesfully rematching, make sure globals are unset
+        """
+
+        self.pass_correct.rematch_if_necessary()
+        self.check_cache_is_off()
+
+    @patch('content_testing.models.ContentTest._still_matches')
+    @patch('content_testing.models.ContentTest._still_hashes_match')
+    def test_cache_clear_on_error(self, _still_matches, _still_hashes_match):
+        """
+        ensure caches get cleared even if self._still_matches or
+        self._still_hashes_match raises an error
+        """
+
+        _still_hashes_match.side_effect = Exception('Boom!')
+        _still_matches.side_effect = Exception('Boom!2')
+
+        self.assertRaises(Exception, self.pass_correct.rematch_if_necessary)
+
+        self.check_cache_is_off()

@@ -30,7 +30,7 @@ def remove_xml_ids(tree):
 
 def remove_ids(d):
     """
-    remove all keys that end in `id`
+    remove all keys that end in `id` or are `size`
     """
     for k in d:
         try:
@@ -38,6 +38,10 @@ def remove_ids(d):
                 d.pop(k)
         except:
             pass
+
+
+CACHE_MODULESTORE = {}
+CACHE_ON = False
 
 
 class ContentTest(models.Model):
@@ -82,6 +86,11 @@ class ContentTest(models.Model):
 
     @property
     def capa_problem(self):
+        """
+        create the capa_problem.  In teh process override the render_html methods of the
+        response objects for the purpose of inserting html into the problem
+        """
+
         # create a preview capa problem
         lcp = self.capa_module().lcp
 
@@ -112,6 +121,33 @@ class ContentTest(models.Model):
         return lcp
 
     def capa_module(self):
+        """
+        resturns a preview instance of the capa module pointed to by
+        self.problem_location
+        """
+        # if caching is on, try to get from chach
+        global CACHE_ON
+        if CACHE_ON:
+            try:
+                preview_module = CACHE_MODULESTORE[self.pk]
+
+            except KeyError:
+                # create a preview of the capa_module
+                preview_module = self.construct_preview_module()
+
+                # add it to the cache
+                CACHE_MODULESTORE[self.pk] = preview_module
+
+        else:
+            # create a preview of the capa_module
+            preview_module = self.construct_preview_module()
+
+        return preview_module
+
+    def construct_preview_module(self):
+        """
+        construct a new preview capa module
+        """
         # create a preview of the capa_module
         problem_descriptor = modulestore().get_item(Location(self.problem_location))
         preview_module = get_preview_module(0, problem_descriptor)
@@ -177,6 +213,8 @@ class ContentTest(models.Model):
         """
         return an html summary of this test
         """
+        # check for changes to the capa_problem
+        self.rematch_if_necessary()
 
         # retrieve all inputs sorted first by response, and then by order in that response
         sorted_inputs = self.input_set.order_by('response_index', 'input_index').values('answer')
@@ -190,8 +228,8 @@ class ContentTest(models.Model):
         """
         return html to put into form for editing and creating
         """
-
-        # THIS FUNCTION IS BASICALLY A COMPLETE HACK
+        # check for changes to the capa_problem
+        self.rematch_if_necessary()
 
         # html with the inputs blank
         html_form = self.capa_problem.get_html()
@@ -200,6 +238,7 @@ class ContentTest(models.Model):
         # as far as I can tell these are only used for
         # multiple choice and dropdowns (although these are not
         # the ones people will really be testing)
+        # THIS STEP IS BASICALLY A COMPLETE HACK
         import re
         remove_form_open = r"(<form)[^>]*>"
         remove_form_close = r"(/form)"
@@ -217,11 +256,34 @@ class ContentTest(models.Model):
         match but the structure still does.
         """
 
-        if not self._still_matches():
-            self._rematch()
+        # if this contentTest has not been saved, no need to check
+        if self.pk is None:
+            return
 
-        elif not self._still_hashes_match():
-            self._reassign_hashes()
+        t = time.time()
+        # clear cache and turn caching on
+
+        global CACHE_ON
+        CACHE_ON = True
+        CACHE_MODULESTORE.clear()
+
+        try:
+            if not self._still_matches():
+                self._rematch()
+
+            elif not self._still_hashes_match():
+                self._reassign_hashes()
+        except:
+            raise
+
+        finally:
+            # clear cache and turn caching off
+            CACHE_ON = False
+            CACHE_MODULESTORE.clear()
+
+        f = open('/Users/irh/Desktop/out.txt', 'a')
+        f.write("Rematch Time: %f\n" % (time.time()-t))
+        f.close()
 
 #======= Private Methods =======#
 
@@ -427,10 +489,10 @@ class ContentTest(models.Model):
         update the input models with the new responses
         """
 
-        for resp_model in self.response_set.all():
-            for input_model in resp_model.input_set.all():
-                input_model.answer = new_dict[input_model.string_id]
-                input_model.save()
+        # for resp_model in self.response_set.all():
+        for input_model in self.input_set.all():
+            input_model.answer = new_dict[input_model.string_id]
+            input_model.save()
 
 
 class Response(models.Model):
@@ -507,7 +569,7 @@ class Response(models.Model):
 
         try:
             return len(self.capa_response.inputfields) == self.input_set.count()
-        except:
+        except KeyError:
             return False
 
     def _reassign_hashes(self):
