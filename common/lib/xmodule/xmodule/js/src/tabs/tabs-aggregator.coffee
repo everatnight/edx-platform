@@ -1,20 +1,20 @@
 window.TabsEditingDescriptorModel =
-  add_save : (id, tab_name, save_function) ->
+  addSave : (id, tabName, saveFunction) ->
     ###
     Function that register save functions of every tab.
     ###
     @init(id)
-    @[id].model_update[tab_name] = save_function
+    @modules[id].modelUpdate[tabName] = saveFunction
 
-  add_onswitch : (id, tab_name, onswitch_function) ->
+  addOnSwitch : (id, tabName, onSwitchFunction) ->
     ###
     Function that register functions invoked when switching
     to particular tab.
     ###
     @init(id)
-    @[id].tab_switch[tab_name] = onswitch_function
+    @modules[id].tabSwitch[tabName] = onSwitchFunction
 
-  update_value : (id, tab_name) ->
+  updateValue : (id, tabName) ->
     ###
     Function that invokes when switching tabs.
     It ensures that data from previous tab is stored.
@@ -22,33 +22,39 @@ window.TabsEditingDescriptorModel =
     stored value.
     ###
     @init(id)
-    @[id]['value'] = @[id]['model_update'][tab_name]()  if $.isFunction(@[id]['model_update'][tab_name])
+    saveFunction = @modules[id]['modelUpdate'][tabName]
+    @modules[id]['value'] =saveFunction()  if $.isFunction(saveFunction)
 
-  get_value : (id, tab_name) ->
+  getValue : (id, tabName) ->
     ### 
     Retrieves stored data on save.
     1. When we switching tabs - previous tab data is always saved to @[id].value
     2. If current tab have registered save method, it should be invoked 1st.
     (If we have edited in 1st tab, then switched to 2nd, 2nd tab should
-    care about getting data from @[id].value somehow.)
+    care about getting data from @[id].value in onSwitch.)
     ###
-    @init(id)
-    if $.isFunction(@[id]['model_update'][tab_name])
-      @[id]['model_update'][tab_name]() 
+    if not @modules[id]
+      return null
+    if $.isFunction(@modules[id]['modelUpdate'][tabName])
+      @modules[id]['modelUpdate'][tabName]()
     else
-      if typeof @[id]['value'] is 'undefined'
+      if typeof @modules[id]['value'] is 'undefined'
         return null
       else
-        return @[id]['value']
+        return @modules[id]['value']
+
+  # html_id's of descriptors will be stored in modules variable as
+  # containers for callbacks.
+  modules: {}
 
   init : (id) ->
     ###
     Initialize objects per id.
     Id is html_id of descriptor.
     ###
-    @[id] = @[id] or {}
-    @[id].tab_switch = @[id]['tab_switch'] or {}
-    @[id].model_update = @[id]['model_update'] or {}
+    @modules[id] = @modules[id] or {}
+    @modules[id].tabSwitch = @modules[id]['tabSwitch'] or {}
+    @modules[id].modelUpdate = @modules[id]['modelUpdate'] or {}
 
 
 class @TabsEditingDescriptor
@@ -61,6 +67,7 @@ class @TabsEditingDescriptor
     (Like many CodeMirrors)
     ###
 
+    # hide editor/settings bar
     $('.component-edit-header').hide()
 
     @$tabs = $(".tab", @element)
@@ -82,17 +89,7 @@ class @TabsEditingDescriptor
     isInactiveClass = TabsEditingDescriptor.isInactiveClass
     $currentTarget = $(e.currentTarget)
 
-    # hide old bar 
-    editorModeButton =  @element.find('#editor-mode').find("a")
-    editorModeButton.removeClass('is-set')
-    # and set metadata editor to active, it will be shown by tab engine
-    settingsEditor = @element.find('.wrapper-comp-settings')
-    settingsModeButton = @element.find('#settings-mode').find("a")
-    settingsEditor.addClass('is-active')
-    settingsModeButton.addClass('is-set')
-
     if not $currentTarget.hasClass('current') or firstTime is true
-
       previousTab = null
 
       @$tabs.each( (index, value) ->
@@ -101,14 +98,13 @@ class @TabsEditingDescriptor
       )
 
       # init and save data from previous tab
-      window.TabsEditingDescriptorModel.init(@html_id)
-      window.TabsEditingDescriptorModel.update_value(@html_id, previousTab)
+      window.TabsEditingDescriptorModel.updateValue(@html_id, previousTab)
 
       # save data from editor in previous tab to editor in current tab here.
 
       # call onswitch
-      if $.isFunction(window.TabsEditingDescriptorModel[@html_id].tab_switch[$currentTarget.text()])
-        window.TabsEditingDescriptorModel[@html_id].tab_switch[$currentTarget.text()]()
+      onSwitchFunction = window.TabsEditingDescriptorModel.modules[@html_id].tabSwitch[$currentTarget.text()]
+      onSwitchFunction() if $.isFunction(onSwitchFunction)
 
       @$tabs.removeClass('current')
       $currentTarget.addClass('current')
@@ -125,4 +121,4 @@ class @TabsEditingDescriptor
   save: ->
     @element.off('click', '.editor-tabs .tab', @onSwitchEditor)
     current_tab = @$tabs.filter('.current').html()
-    data: window.TabsEditingDescriptorModel.get_value(@html_id, current_tab)
+    data: window.TabsEditingDescriptorModel.getValue(@html_id, current_tab)

@@ -14,12 +14,12 @@
               lineWrapping: true
             });
 
-      window.TabsEditingDescriptorModel.add_save(
+      window.TabsEditingDescriptorModel.addSave(
         '${html_id}', 
         '${tabName}',  
         function()  { return xml_editor.getValue(); })       
 
-      window.TabsEditingDescriptorModel.add_onswitch(
+      window.TabsEditingDescriptorModel.addOnSwitch(
         '${html_id}', 
         '${tabName}',  
         function(){   

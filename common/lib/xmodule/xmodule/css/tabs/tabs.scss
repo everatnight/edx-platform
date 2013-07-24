@@ -4,15 +4,16 @@
 .tabs-wrapper{
   padding-top: 0;
   position: relative;
+
+  .wrapper-comp-settings {
+    // set visibility to metadata editor
+    display: block;
+  }
 }
 
 .editor-single-tab-name {
   display: none;
 }
-
-
-
-
 
 
 .editor-with-tabs {
@@ -87,44 +88,6 @@
       }
     }
   }
-
-
-
-/*
-  .editor-tabs {
-    position: absolute;
-    top: 11px !important;
-    right: 10px;
-    z-index: 99;
-
-    li {
-      float: left;
-      margin-right: 5px;
-
-      &:last-child {
-        margin-right: 0;
-      }
-    }
-
-    .tab {
-      display: block;
-      height: 24px;
-      padding: 7px 20px 3px;
-      border: 1px solid #a5aaaf;
-      border-radius: 3px 3px 0 0;
-      @include linear-gradient(top, rgba(0, 0, 0, 0) 87%, rgba(0, 0, 0, .06));
-      background-color: #e5ecf3;
-      font-size: 13px;
-      color: #3c3c3c;
-      box-shadow: 1px -1px 1px rgba(0, 0, 0, .05);
-
-      &.current {
-        background: #fff;
-        border-bottom-color: #fff;
-      }
-    }
-  }
-  */
 
   .is-inactive {
     display: none;

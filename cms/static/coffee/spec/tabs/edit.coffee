@@ -3,17 +3,24 @@ describe "TabsEditingDescriptor", ->
     @isInactiveClass = "is-inactive"
     @isCurrent = "current"
     loadFixtures 'tabs-edit.html'
-    @descriptor = new window.TabsEditingDescriptor($('.base_wrapper'))
-    window.TabsEditingDescriptor['tabs_save_functions'] = {}
+    @descriptor = new TabsEditingDescriptor($('.base_wrapper'))
     @html_id = 'test_id'
-    window.TabsEditingDescriptor['tabs_save_functions'][@html_id] = {}
-    window.TabsEditingDescriptor['tabs_save_functions'][@html_id]['Tab 0'] = ->
-      'XML Editor Text'
-    window.TabsEditingDescriptor['tabs_save_functions'][@html_id]['Tab 1'] = ->
-      'XML Editor Text'
+    @tab_0_switch = jasmine.createSpy('tab_0_switch');
+    @tab_0_save = jasmine.createSpy('tab_0_save');
+    @tab_1_switch = jasmine.createSpy('tab_1_switch');
+    @tab_1_save = jasmine.createSpy('tab_1_save');
+    TabsEditingDescriptorModel.addSave(@html_id, 'Tab 0 Editor', @tab_0_save)
+    TabsEditingDescriptorModel.addOnSwitch(@html_id, 'Tab 0 Editor', @tab_0_switch)
+    TabsEditingDescriptorModel.addSave(@html_id, 'Tab 1 Transcripts', @tab_1_save)
+    TabsEditingDescriptorModel.addOnSwitch(@html_id, 'Tab 1 Transcripts', @tab_1_switch)
 
     spyOn($.fn, 'hide').andCallThrough()
     spyOn($.fn, 'show').andCallThrough()
+    spyOn(TabsEditingDescriptorModel, 'init')
+    spyOn(TabsEditingDescriptorModel, 'updateValue')
+
+  afterEach ->
+    TabsEditingDescriptorModel.modules= {}
 
   describe "constructor", ->
     it "first tab should be visible", ->
@@ -21,24 +28,13 @@ describe "TabsEditingDescriptor", ->
       expect(@descriptor.$content.first()).not.toHaveClass(@isInactiveClass)
 
   describe "onSwitchEditor", ->
-    it "switch tabs", ->
+    it "switching tabs changes styles", ->
       @descriptor.$tabs.eq(1).trigger("click")
       expect(@descriptor.$tabs.eq(0)).not.toHaveClass(@isCurrent)
       expect(@descriptor.$content.eq(0)).toHaveClass(@isInactiveClass)
       expect(@descriptor.$tabs.eq(1)).toHaveClass(@isCurrent)
       expect(@descriptor.$content.eq(1)).not.toHaveClass(@isInactiveClass)
-
-    it "event 'TabsEditor:changeTab' is triggered", ->
-      spyOn($.fn, 'trigger').andCallThrough()
-      @descriptor.$tabs.eq(1).trigger("click")
-      expect($.fn.trigger.mostRecentCall.args[0]).toEqual('TabsEditor:changeTab')
-      expect($.fn.trigger.mostRecentCall.args[1]).toEqual(
-        [
-          'Tab 1', # tab_name
-          '#tab-1',  # tab_id
-          'Tab 0'
-        ]
-      )
+      expect(@tab_1_switch).toHaveBeenCalled()
 
     it "if click on current tab, anything should happens", ->
       spyOn($.fn, 'trigger').andCallThrough()
@@ -47,16 +43,16 @@ describe "TabsEditingDescriptor", ->
       expect(@descriptor.$tabs.filter('.' + @isCurrent)).toEqual(currentTab)
       expect($.fn.trigger.calls.length).toEqual(1)
 
-  describe "save", ->
-    it "if CodeMirror exist, data should be retreived", ->
-      editBox = $('.edit-box')
-      CodeMirrorStub =
-        getValue: () ->
-           editBox.val()
+    it "onSwitch function call", ->
+      @descriptor.$tabs.eq(1).trigger("click")
+      expect(TabsEditingDescriptorModel.updateValue).toHaveBeenCalled()
+      expect(@tab_1_switch).toHaveBeenCalled()
 
-      editBox.data('CodeMirror', CodeMirrorStub)
+  describe "save", ->
+    it "function for current tab should be called", ->
+      @descriptor.$tabs.eq(1).trigger("click")
       data = @descriptor.save().data
-      expect(data).toEqual('XML Editor Text')
+      expect(@tab_1_save).toHaveBeenCalled()
 
     it "detach click event", ->
       spyOn($.fn, "off")
@@ -67,35 +63,37 @@ describe "TabsEditingDescriptor", ->
         @descriptor.onSwitchEditor
       )
 
-  describe "registerTabCallback", ->
-    beforeEach ->
-      @id = 'id'
-      TabsEditingDescriptor.registerTabCallback("#{@id}")
+  describe "editor/settings header", ->
+    it "is hidden", ->
+      expect(@descriptor.element.find(".component-edit-header").css('display')).toEqual('none')
 
-    afterEach ->
-      $("#editor-tab-#{@id}").off 'TabsEditor:changeTab'
+describe "TabsEditingDescriptor special save cases", ->
+  beforeEach ->
+    @isInactiveClass = "is-inactive"
+    @isCurrent = "current"
+    loadFixtures 'tabs-edit.html'
+    @descriptor = new window.TabsEditingDescriptor($('.base_wrapper'))
+    @html_id = 'test_id'
 
-    it "event subscribed", ->
-      expect($("#editor-tab-#{@id}")).toHandle('TabsEditor:changeTab')
+  describe "save", ->
+    it "case: no init", ->
+      data = @descriptor.save().data
+      expect(data).toEqual(null)
 
-  describe "edit header properly hidden", ->
-    it "hide header is True", ->
-      waitsFor () ->
-        if (@descriptor.element.find(".component-edit-header").css('display') is 'none')
-          return true
-        return false;
-      , "Timeout for header show/hide", 750
+    it "case: no function in model update", ->
+      TabsEditingDescriptorModel.init(@html_id)
+      data = @descriptor.save().data
+      expect(data).toEqual(null)
 
-  describe "Settings tab", ->
-    it "Clicking on Settings tab switches to settings", ->
+    it "case: no function in model update, but value presented", ->
+      @tab_0_save = jasmine.createSpy('tab_0_save').andReturn(1)
+      TabsEditingDescriptorModel.addSave(@html_id, 'Tab 0 Editor', @tab_0_save)
+      @descriptor.$tabs.eq(1).trigger("click")
+      expect(@tab_0_save).toHaveBeenCalled()
+      data = @descriptor.save().data
+      expect(data).toEqual(1)
 
-      settingsEditor = @descriptor.element.find('.wrapper-comp-settings')
-      editorModeButton =  @descriptor.element.find('#editor-mode').find("a")
-      settingsModeButton = @descriptor.element.find('#settings-mode').find("a")
 
-      @descriptor.element.find('#settings').find('a').trigger('click')
 
-      expect(settingsEditor.hasClass('is-active')).toBe(true)
 
-      expect(settingsModeButton.hasClass('is-set')).toBe(true)
-      expect(editorModeButton.hasClass('is-set')).toBe(false)
+
