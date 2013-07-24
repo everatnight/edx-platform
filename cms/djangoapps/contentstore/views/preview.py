@@ -95,12 +95,10 @@ def preview_module_system(preview_id, descriptor, request=None):
 
     if request is not None:
         kvs = SessionKeyValueStore(request, descriptor._model_data)
-        # get_module = partial(get_preview_module, preview_id, request)  # not actually different
         user = request.user
 
     else:
         kvs = StaticPreviewKeyValueStore(descriptor._model_data)
-        # get_module = partial(get_preview_module, preview_id)
         user = None
 
     def preview_model_data(descriptor):
