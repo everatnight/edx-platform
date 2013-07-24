@@ -87,7 +87,6 @@ class SequenceModule(SequenceFields, XModule):
                     grand_child.display_name
                     for grand_child in child.get_children()
                     if grand_child.display_name is not None
-                    and grand_child.display_name != "Discussion Tag"
                     and grand_child.display_name != "Blank HTML Page"
                 ),
                 'progress_status': Progress.to_js_status_str(progress),

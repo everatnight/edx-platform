@@ -12,7 +12,7 @@ class DiscussionFields(object):
     display_name = String(
         display_name="Display Name",
         help="Display name for this module",
-        default="Discussion Tag",
+        default="Discussion",
         scope=Scope.settings
     )
     data = String(
