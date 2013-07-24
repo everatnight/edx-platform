@@ -47,8 +47,10 @@ class ModuleRenderTestCase(LoginEnrollmentTestCase):
                                                                    dispatch=self.dispatch))
 
     def test_get_module(self):
-        self.assertIsNone(render.get_module('dummyuser', None,
-                                            'invalid location', None, None))
+        self.assertEqual(
+            (None, None),
+            render.get_module('dummyuser', None, 'invalid location', None, None)
+        )
 
     def test_modx_dispatch(self):
         self.assertRaises(Http404, render.modx_dispatch, 'dummy', 'dummy',
